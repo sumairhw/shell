@@ -13,8 +13,11 @@
 #include <readline/readline.h>
 // clang-format on
 
-int execute(char *args[], parseInfo *);
-int execute_cmd(char *args[], parseInfo *);
+char vocab[3][10] = {"cd", "echo", "mkdir"};
+
+int execute(parseInfo *);
+int execute_cmd(parseInfo *);
+int execute_piped_cmd(parseInfo *);
 void setRedirection(parseInfo *);
 
 char *buildPrompt() {
@@ -35,10 +38,9 @@ int main(int argc, char *argv[]) {
         }
 
         info = parse(cmdLine);
-        cmmd = &info->cmd;
 
-        if (cmmd->argLen != 0) {
-            status = execute(cmmd->argList, info);
+        if (info->commArray[0].argLen != 0) {
+            status = execute(info);
         }
 
         free_info(info);
@@ -47,40 +49,102 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-int execute(char **args, parseInfo *info) {
+int execute(parseInfo *info) {
+    char **args = info->commArray[0].argList;
     if (args[0] == NULL) {
         // empty command
         return 1;
     }
 
-    int i;
-    for (i = 0; i < shell_num_builtins(); i++) {
+    for (int i = 0; i < shell_num_builtins(); i++) {
         if (strcmp(args[0], builtin_cmd[i]) == 0) {
             return (*builtin_func[i])(args);
         }
     }
-    return execute_cmd(args, info);
+
+    if (info->boolIsPiped) return execute_piped_cmd(info);
+    return execute_cmd(info);
 }
 
-int execute_cmd(char **args, parseInfo *info) {
+int execute_cmd(parseInfo *info) {
+    char **args = info->commArray[0].argList;
     pid_t cpid, wpid;
     int status = 1;
 
     cpid = fork();
-    switch (cpid) {
-    case -1:
+    if (cpid < 0) {
         perror("fork failed");
         exit(1);
-    case 0:
-        setRedirection(info);
+    }
+
+    if (cpid == 0) {
+        if (info->boolInfile || info->boolOutfile) {
+            setRedirection(info);
+        }
+
         execvp(args[0], args);
         perror("command not found");
         exit(1);
-    default:
-        wpid = waitpid(cpid, &status, 0);
-        printf("Child exited with status %d\n", status >> 8);
-        return 0;
     }
+
+    wpid = waitpid(cpid, &status, 0);
+    printf("Child exited with status %d\n", status >> 8);
+    return 0;
+}
+
+int execute_piped_cmd(parseInfo *info) {
+    char **cmd1 = info->commArray[0].argList;
+    char **cmd2 = info->commArray[1].argList;
+
+    pid_t cpid, wpid, cpid2;
+    int status = 1;
+    int fd[2];
+
+    if (pipe(fd) == -1) {
+        printf("pipe failed\n");
+        exit(0);
+    }
+
+    // first child
+    cpid = fork();
+    if (cpid < 0) {
+        perror("fork failed");
+        exit(1);
+    }
+
+    if (cpid == 0) {
+        dup2(fd[1], STDOUT_FILENO);
+        close(fd[0]);
+        close(fd[1]);
+        execvp(cmd1[0], cmd1);
+        perror("command not found");
+        exit(1);
+    }
+
+    // second child
+    cpid2 = fork();
+    if (cpid2 < 0) {
+        perror("fork failed");
+        exit(1);
+    }
+
+    if (cpid2 == 0) {
+        dup2(fd[0], STDIN_FILENO);
+        close(fd[0]);
+        close(fd[1]);
+
+        execvp(cmd2[0], cmd2);
+        perror("command not found");
+        exit(1);
+    }
+
+    close(fd[0]);
+    close(fd[1]);
+
+    wpid = waitpid(cpid, &status, 0);
+    wpid = waitpid(cpid2, &status, 0);
+    printf("Child exited with status %d\n", status >> 8);
+    return 0;
 }
 
 void setRedirection(parseInfo *info) {

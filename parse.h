@@ -1,7 +1,7 @@
 #define MAXARGS 10
 #define TOK_BUFSIZE 64
 #define TOK_DELIM " \t\r\n\a"
-#define PIPE_MAX_NUM 3
+#define PIPE_MAX_NUM 2
 
 struct commandType {
     char *command;
@@ -13,8 +13,9 @@ typedef struct {
     int boolInfile;     /*infile specified*/
     int boolOutfile;    /*infile specified*/
     int boolBackground; /*run command in bg */
+    int boolIsPiped;    /*pipe exists*/
     struct commandType commArray[PIPE_MAX_NUM];
-    struct commandType cmd;
+    // struct commandType cmd;
     char *inFile;  /*file for input redirection*/
     char *outFile; /*file for output redirection*/
 } parseInfo;

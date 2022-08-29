@@ -8,6 +8,7 @@ parseInfo *parse(char *cmdLine) {
     parseInfo *Result;
     Result = malloc(sizeof(parseInfo));
     init_info(Result);
+    // print_info(Result);
 
     int bufsize = TOK_BUFSIZE, position = 0;
     char **tokens = malloc(bufsize * sizeof(char *));
@@ -25,27 +26,34 @@ parseInfo *parse(char *cmdLine) {
     }
     tokens[position] = NULL;
 
+    int idx = 0, list_i = 0;
     for (int i = 0; i < position; i++) {
-        strcpy(Result->cmd.argList[i], tokens[i]);
-        Result->cmd.argLen++;
+        if (tokens[i][0] == '|') {
+            Result->boolIsPiped = 1;
+            Result->commArray[idx].argList[list_i++] = NULL;
+            Result->commArray[idx].command = tokens[0];
+
+            list_i = 0;
+            idx++;
+
+            if (idx >= PIPE_MAX_NUM) {
+                perror("oops: Only one pipe is supported!\n");
+                break;
+            }
+            continue;
+        }
+
+        strcpy(Result->commArray[idx].argList[list_i++], tokens[i]);
+        Result->commArray[idx].argLen++;
     }
 
-    Result->cmd.argList[position] = NULL;
-    Result->cmd.command = tokens[0];
+    Result->commArray[idx].argList[list_i] = NULL;
+    Result->commArray[idx].command = Result->commArray[idx].argList[0];
 
     // print_info(Result);
     free(tokens);
     return Result;
 }
-
-// int parse_help_pipe(char *token, parseInfo *Result) {
-//     // give space between commands
-//     if (token[0] == '|') {
-//         // pipe exists
-//     }
-
-//     return 1;
-// }
 
 int parse_help_redirection(char *token, parseInfo *Result) {
     if (token == NULL) {
@@ -72,15 +80,19 @@ void init_info(parseInfo *info) {
     info->boolBackground = 0;
     info->boolInfile = 0;
     info->boolOutfile = 0;
+    info->boolIsPiped = 0;
     info->inFile = NULL;
     info->outFile = NULL;
 
-    info->cmd.command = NULL;
-    info->cmd.argLen = 0;
+    for (int idx = 0; idx < PIPE_MAX_NUM; idx++) {
+        info->commArray[idx].command = NULL;
+        info->commArray[idx].argLen = 0;
 
-    info->cmd.argList = (char **)malloc(sizeof(char *) * MAXARGS);
-    for (int i = 0; i < MAXARGS; i++) {
-        info->cmd.argList[i] = (char *)malloc(sizeof(char *) * TOK_BUFSIZE);
+        info->commArray[idx].argList = (char **)malloc(sizeof(char *) * MAXARGS);
+        for (int i = 0; i < MAXARGS; i++) {
+            info->commArray[idx].argList[i] =
+                (char *)malloc(sizeof(char *) * TOK_BUFSIZE);
+        }
     }
 }
 
@@ -89,22 +101,28 @@ void print_info(parseInfo *info) {
     printf("infile: %d\t%s\n", info->boolInfile, info->inFile);
     printf("outfile: %d\t%s\n", info->boolOutfile, info->outFile);
     printf("background: %d\n", info->boolBackground);
-    printf("command: %s\targlen: %d\nargs: ", info->cmd.command,
-           info->cmd.argLen);
+    printf("piped: %d\n", info->boolIsPiped);
 
-    for (int i = 0; i < info->cmd.argLen; i++) {
-        printf("%s ", info->cmd.argList[i]);
+    for (int idx = 0; idx < PIPE_MAX_NUM; idx++) {
+        printf("command: %s\targlen: %d\nargs: ", info->commArray[idx].command,
+               info->commArray[idx].argLen);
+
+        for (int i = 0; i < info->commArray[idx].argLen; i++) {
+            printf("%s ", info->commArray[idx].argList[i]);
+        }
+
+        printf("\n");
     }
-
-    printf("\n");
 }
 
 void free_info(parseInfo *info) {
     // printf("free_info: freeing memory associated to parseInfo struct\n");
-    for (int i = 0; i < MAXARGS; i++) {
-        free(info->cmd.argList[i]);
+    for (int idx = 0; idx < PIPE_MAX_NUM; idx++) {
+        for (int i = 0; i < MAXARGS; i++) {
+            free(info->commArray[idx].argList[i]);
+        }
+        free(info->commArray[idx].argList);
     }
-    free(info->cmd.argList);
 
     free(info);
 }
