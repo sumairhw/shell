@@ -18,7 +18,9 @@ char vocab[3][10] = {"cd", "echo", "mkdir"};
 int execute(parseInfo *);
 int execute_cmd(parseInfo *);
 int execute_piped_cmd(parseInfo *);
+int execute_bg_cmd(parseInfo *);
 void setRedirection(parseInfo *);
+int splitCommands(char **, char *);
 
 char *buildPrompt() {
     return "% ";
@@ -26,8 +28,7 @@ char *buildPrompt() {
 
 int main(int argc, char *argv[]) {
     char *cmdLine;
-    parseInfo *info;          /*stores all information returned by parser*/
-    struct commandType *cmmd; /*stores command name and arg list for one command*/
+    parseInfo *info; /*stores all information returned by parser*/
 
     int status;
     while (1) {
@@ -37,13 +38,23 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Unable to read command");
         }
 
-        info = parse(cmdLine);
+        add_history(cmdLine);
 
-        if (info->commArray[0].argLen != 0) {
-            status = execute(info);
+        // handle multiple cmds separated by ;
+        char **commands;
+        commands = malloc(1024 * sizeof(char *));
+        int cmd_count = splitCommands(commands, cmdLine);
+
+        for (int cmd_i = 0; cmd_i < cmd_count; cmd_i++) {
+            info = parse(commands[cmd_i]);
+            if (info->commArray[0].argLen != 0) {
+                status = execute(info);
+            }
+
+            free_info(info);
         }
 
-        free_info(info);
+        free(commands);
         free(cmdLine);
     }
     return 0;
@@ -63,6 +74,9 @@ int execute(parseInfo *info) {
     }
 
     if (info->boolIsPiped) return execute_piped_cmd(info);
+    // else if (info->boolBackground) {
+    //     return execute_bg_cmd(info);
+    // }
     return execute_cmd(info);
 }
 
@@ -147,6 +161,15 @@ int execute_piped_cmd(parseInfo *info) {
     return 0;
 }
 
+int execute_bg_cmd(parseInfo *info) {
+    // to do
+    // a thread is a very expensive way to prevent a zombie. The standard
+    // recommendation is to catch SIGCHLD and then call wait in your signal
+    // handler.
+
+    return 0;
+}
+
 void setRedirection(parseInfo *info) {
     if (info->boolInfile == 1) {
         // printf("setting input redirection\n");
@@ -165,4 +188,19 @@ void setRedirection(parseInfo *info) {
         }
         int newfd = dup2(output_fd, STDOUT_FILENO);
     }
+}
+
+int splitCommands(char **commands, char *cmdLine) {
+    // commands = malloc(1024 * sizeof(char *));
+    int count = 0;
+    char *cmd;
+
+    cmd = strtok(cmdLine, ";");
+    while (cmd != NULL) {
+        commands[count] = cmd;
+        count = count + 1;
+        cmd = strtok(NULL, ";");
+    }
+    commands[count] = NULL;
+    return count;
 }

@@ -22,6 +22,11 @@ parseInfo *parse(char *cmdLine) {
             position++;
         }
 
+        if (token[0] == '&') {
+            Result->boolBackground = 1;
+            position--;
+        }
+
         token = strtok(NULL, TOK_DELIM);
     }
     tokens[position] = NULL;
@@ -112,6 +117,7 @@ void print_info(parseInfo *info) {
         }
 
         printf("\n");
+        if (info->boolIsPiped == 0) break;
     }
 }
 

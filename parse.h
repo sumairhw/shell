@@ -1,6 +1,6 @@
 #define MAXARGS 10
 #define TOK_BUFSIZE 64
-#define TOK_DELIM " \t\r\n\a"
+#define TOK_DELIM " \t\r\n\a="
 #define PIPE_MAX_NUM 2
 
 struct commandType {
