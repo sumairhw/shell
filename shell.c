@@ -24,6 +24,10 @@ char *buildPrompt() {
     return "% ";
 }
 
+void reaper(int signalNumber) {
+    waitpid(-1, NULL, WNOHANG);
+}
+
 int main(int argc, char *argv[]) {
     load_shell_variables();
     char *cmdLine;
@@ -78,11 +82,12 @@ int execute(parseInfo *info) {
         }
     }
 
-    if (info->boolIsPiped) return execute_piped_cmd(info);
     if (info->boolisVariableSetter) return execute_set_variable(info);
-    // else if (info->boolBackground) {
-    //     return execute_bg_cmd(info);
-    // }
+    if (info->boolIsPiped)
+        return execute_piped_cmd(info);
+    else if (info->boolBackground) {
+        return execute_bg_cmd(info);
+    }
     return execute_cmd(info);
 }
 
@@ -174,11 +179,32 @@ int execute_piped_cmd(parseInfo *info) {
 }
 
 int execute_bg_cmd(parseInfo *info) {
-    // to do
     // a thread is a very expensive way to prevent a zombie. The standard
     // recommendation is to catch SIGCHLD and then call wait in your signal
     // handler.
 
+    char **args = info->commArray[0].argList;
+    pid_t cpid, wpid;
+    int status = 1;
+
+    cpid = fork();
+    if (cpid < 0) {
+        perror("fork failed");
+        exit(1);
+    }
+
+    if (cpid == 0) {
+        if (info->boolInfile || info->boolOutfile) {
+            setRedirection(info);
+        }
+
+        execvp(args[0], args);
+        perror("command not found");
+        exit(1);
+    }
+
+    signal(SIGCHLD, reaper);
+    // printf("Child exited with status %d\n", status >> 8);
     return 0;
 }
 
