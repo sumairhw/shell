@@ -13,7 +13,9 @@ typedef struct {
     int boolInfile;     /*infile specified*/
     int boolOutfile;    /*infile specified*/
     int boolBackground; /*run command in bg */
-    int boolIsPiped;    /*pipe exists*/
+    int boolisVariableSetter;
+    int boolIsPiped; /*pipe exists*/
+    int boolFail;
     struct commandType commArray[PIPE_MAX_NUM];
     // struct commandType cmd;
     char *inFile;  /*file for input redirection*/
@@ -25,4 +27,5 @@ void print_info(parseInfo *);
 void free_info(parseInfo *);
 void init_info(parseInfo *);
 int parse_help_redirection(char *, parseInfo *);
+char *parse_help_variable(char *);
 int parse_help_pipe(char *, parseInfo *);

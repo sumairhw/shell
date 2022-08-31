@@ -4,11 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "builtin.c"
+
 parseInfo *parse(char *cmdLine) {
     parseInfo *Result;
     Result = malloc(sizeof(parseInfo));
     init_info(Result);
-    // print_info(Result);
 
     int bufsize = TOK_BUFSIZE, position = 0;
     char **tokens = malloc(bufsize * sizeof(char *));
@@ -22,13 +23,30 @@ parseInfo *parse(char *cmdLine) {
             position++;
         }
 
+        if (token[0] == '$') {
+            char *value = parse_help_variable(token);
+            if (strcmp(value, "notfound") == 0) {
+                Result->boolFail = 1;
+                return Result;
+            }
+
+            position--;
+            tokens[position] = value;
+            position++;
+        }
+
         if (token[0] == '&') {
             Result->boolBackground = 1;
             position--;
         }
 
+        if (strcmp(token, "export") == 0) {
+            Result->boolisVariableSetter = 1;
+        }
+
         token = strtok(NULL, TOK_DELIM);
     }
+
     tokens[position] = NULL;
 
     int idx = 0, list_i = 0;
@@ -80,13 +98,23 @@ int parse_help_redirection(char *token, parseInfo *Result) {
     return 1;
 }
 
+char *parse_help_variable(char *token) {
+    char temp[20] = {'\0'};
+    for (int i = 1; i < strlen(token); i++) {
+        temp[i - 1] = token[i];
+    }
+    return search_shell_variable(temp);
+}
+
 void init_info(parseInfo *info) {
     // printf("init_info: initializing parseInfo struct\n");
     info->boolBackground = 0;
     info->boolInfile = 0;
     info->boolOutfile = 0;
     info->boolIsPiped = 0;
+    info->boolisVariableSetter = 0;
     info->inFile = NULL;
+    info->boolFail = 0;
     info->outFile = NULL;
 
     for (int idx = 0; idx < PIPE_MAX_NUM; idx++) {
@@ -106,6 +134,8 @@ void print_info(parseInfo *info) {
     printf("infile: %d\t%s\n", info->boolInfile, info->inFile);
     printf("outfile: %d\t%s\n", info->boolOutfile, info->outFile);
     printf("background: %d\n", info->boolBackground);
+    printf("failed: %d\n", info->boolFail);
+    printf("variable setter: %d\n", info->boolBackground);
     printf("piped: %d\n", info->boolIsPiped);
 
     for (int idx = 0; idx < PIPE_MAX_NUM; idx++) {

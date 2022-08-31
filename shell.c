@@ -1,6 +1,5 @@
 // clang-format off
-#include "parse.h"
-#include "builtin.c"
+#include "parse.c"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,12 +12,11 @@
 #include <readline/readline.h>
 // clang-format on
 
-char vocab[3][10] = {"cd", "echo", "mkdir"};
-
 int execute(parseInfo *);
 int execute_cmd(parseInfo *);
 int execute_piped_cmd(parseInfo *);
 int execute_bg_cmd(parseInfo *);
+int execute_set_variable(parseInfo *);
 void setRedirection(parseInfo *);
 int splitCommands(char **, char *);
 
@@ -27,6 +25,7 @@ char *buildPrompt() {
 }
 
 int main(int argc, char *argv[]) {
+    load_shell_variables();
     char *cmdLine;
     parseInfo *info; /*stores all information returned by parser*/
 
@@ -47,6 +46,12 @@ int main(int argc, char *argv[]) {
 
         for (int cmd_i = 0; cmd_i < cmd_count; cmd_i++) {
             info = parse(commands[cmd_i]);
+
+            if (info->boolFail) {
+                printf("variable not found\n");
+                continue;
+            }
+
             if (info->commArray[0].argLen != 0) {
                 status = execute(info);
             }
@@ -74,10 +79,17 @@ int execute(parseInfo *info) {
     }
 
     if (info->boolIsPiped) return execute_piped_cmd(info);
+    if (info->boolisVariableSetter) return execute_set_variable(info);
     // else if (info->boolBackground) {
     //     return execute_bg_cmd(info);
     // }
     return execute_cmd(info);
+}
+
+int execute_set_variable(parseInfo *info) {
+    char **args = info->commArray[0].argList;
+    write_shell_variable(args[1], args[2]);
+    return 0;
 }
 
 int execute_cmd(parseInfo *info) {
